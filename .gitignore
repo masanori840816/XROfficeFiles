@@ -7,6 +7,8 @@
 /Packages
 .utmp
 /Assets/Images/*
+/Assets/Plugins/PrimeTween/*
+/Assets/Plugins/PrimeTween.meta
 
 *.txt
 *.ttf
