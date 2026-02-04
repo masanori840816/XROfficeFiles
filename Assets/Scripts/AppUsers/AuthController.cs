@@ -22,7 +22,14 @@ public class AuthController : MonoBehaviour
             return ApplicationResult.GetFailedResult("Mail address or password is empty.");
         }
         try
-        {            
+        {
+            string xsrfToken = await httpClient.GetXSRFTokenAsync(serverAddress);
+            if(string.IsNullOrEmpty(xsrfToken))
+            {
+                return ApplicationResult.GetFailedResult("Failed to get XSRF token.");
+            }
+            HttpClient client = httpClient.Client;
+            client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", xsrfToken);
             SignInValue value = new SignInValue
             {
                 email = mailAddress,
@@ -35,13 +42,6 @@ public class AuthController : MonoBehaviour
             content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
             string url = $"{serverAddress}/api/users/signin";
-
-            HttpClientHandler handler = new HttpClientHandler()
-            {
-                Proxy = null,
-                UseProxy = false,
-            };
-            var client = new HttpClient(handler);
             HttpResponseMessage response = await client.PostAsync(url, content);
             response.EnsureSuccessStatusCode(); 
             string responseBody = await response.Content.ReadAsStringAsync();
