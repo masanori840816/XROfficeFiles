@@ -7,8 +7,27 @@ using UnityEngine;
 
 public class HttpClientManager : MonoBehaviour
 {
-    private CookieContainer cookieContainer = new CookieContainer();
+    private readonly CookieContainer cookieContainer = new CookieContainer();
     public HttpClient Client { get; private set; }
+    public string GetCookieValue(string url, string cookieName)
+    {
+        foreach (Cookie cookie in cookieContainer.GetCookies(new Uri(url)))
+        {
+            if (cookie.Name == cookieName)
+            {
+                return WebUtility.UrlDecode(cookie.Value);
+            }
+        }
+        return "";
+    }
+    public void SetCookieValue(string url, string cookieName, string cookieValue)
+    {
+        Cookie cookie = new Cookie(cookieName, WebUtility.UrlEncode(cookieValue))
+        {
+            Domain = new Uri(url).Host
+        };
+        cookieContainer.Add(cookie);
+    }
     private void Awake()
     {
 #if UNITY_EDITOR
@@ -20,10 +39,14 @@ public class HttpClientManager : MonoBehaviour
             CookieContainer = cookieContainer,
             UseCookies = true
         };
-        this.Client = new HttpClient(handler);
 #else
-        this.Client = new HttpClient();
+        HttpClientHandler handler = new HttpClientHandler()
+        {
+            CookieContainer = cookieContainer,
+            UseCookies = true
+        };
 #endif
+        this.Client = new HttpClient(handler);
     }
     public async Task<string> GetXSRFTokenAsync(string serverAddress)
     {
