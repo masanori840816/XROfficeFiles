@@ -1,14 +1,22 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 using XROfficeFiles.OfficeFiles.Values;
 
 namespace XROfficeFiles.Pages
 {
     public class SpreadSheetPage : MonoBehaviour, IPageBehaviour
     {
+        [SerializeField] private Transform tableRoot;
+        [SerializeField] private GameObject rowPrefab;
+        [SerializeField] private GameObject cellPrefab;
+
+        [SerializeField] private float widthMultiplier = 100f;
+        [SerializeField] private float heightMultiplier = 100f;
         [SerializeField] private SaveDataManager saveDataManager;
 
         public Action<AppPage> MoveNextPage { get; set; }
@@ -22,21 +30,56 @@ namespace XROfficeFiles.Pages
         }
         
         private async void Start()
-        {
-            Debug.Log("InspectionPage enabled.");
-            
+        {            
             SpreadSheet sheet = await LoadJsonFromStreamingAssets("sample.json");
             if(sheet == null)
             {
                 Debug.Log("Failed to load spreadsheet.");
                 return;
             }
-            Debug.Log($"sheet ID:{sheet.sheetId}");
+            var rowGroups = sheet.cells.GroupBy(c => c.row).OrderBy(g => g.Key);
+            foreach (var rowGroup in rowGroups) {
+                int rowIdx = rowGroup.Key;
+                GameObject rowObj = Instantiate(rowPrefab, tableRoot);
+                double h = sheet.rowHeights.FirstOrDefault(rh => rh.row == rowIdx)?.height ?? 0.5d;
+                rowObj.GetComponent<LayoutElement>().preferredHeight = (float)h * heightMultiplier;
+                int currentRow = rowIdx;
+                rowObj.GetComponent<Button>().onClick.AddListener(() => OnRowSelected(currentRow));
+                var cellsInRow = rowGroup.OrderBy(c => c.column);
+                foreach (var cell in cellsInRow)
+                {
+                    if (cell.row != cell.mergedStartRow || cell.column != cell.mergedStartColumn) {
+                        continue;
+                    }
+
+                GameObject cellObj = Instantiate(cellPrefab, rowObj.transform);
+                
+                cellObj.GetComponentInChildren<TMPro.TMP_Text>().text = cell.value;
+
+                // セルの幅を計算（結合されている場合はその分加算）
+                double totalWidth = 0d;
+                for (int i = cell.mergedStartColumn; i <= cell.mergedEndColumn; i++) {
+                    totalWidth += sheet.columnWidths.FirstOrDefault(cw => cw.column == i)?.width ?? 1d;
+                }
+                
+                LayoutElement le = cellObj.GetComponent<LayoutElement>();
+                le.preferredWidth = (float)totalWidth * widthMultiplier;
+
+                // set background color
+                if (!string.IsNullOrEmpty(cell.backgroundColor)) {
+                    Color bgColor;
+                    if (ColorUtility.TryParseHtmlString("#" + cell.backgroundColor, out bgColor)) {
+                        cellObj.GetComponent<Image>().color = bgColor;
+                    }
+                }
+                }
+
+            }
         }
 
-        private void OnDisable()
+        private void OnRowSelected(int selectedRow)
         {
-            Debug.Log("InspectionPage disabled.");
+            Debug.Log("selectedRow." + selectedRow);
         }
 
         private async Task<SpreadSheet> LoadJsonFromStreamingAssets(string fileName)
