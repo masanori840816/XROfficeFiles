@@ -39,18 +39,17 @@ namespace XROfficeFiles.Pages
             }
             foreach (var rowGroup in sheet.cells.GroupBy(c => c.row).OrderBy(g => g.Key))
             {
-                Debug.Log($"Idx:{rowGroup.Key} Count:{rowGroup.Count()}");
                 int currentRow = rowGroup.Key;
                 GameObject rowObj = Instantiate(rowPrefab, tableRoot);
                 double h = sheet.rowHeights.FirstOrDefault(rh => rh.row == currentRow)?.height ?? 0.5d;
-                Debug.Log($"Row:{currentRow} Height:{(float)h * heightMultiplier}");
                 rowObj.GetComponent<LayoutElement>().preferredHeight = (float)h * heightMultiplier;
 
                 rowObj.GetComponent<Button>().onClick.AddListener(() => OnRowSelected(currentRow));
                 var cellsInRow = rowGroup.OrderBy(c => c.column);
+                int lastColumn = 0;
                 foreach (var cell in cellsInRow)
                 {
-                    if (cell.row != cell.mergedStartRow || cell.column != cell.mergedStartColumn)
+                    if (cell.row != cell.mergedStartRow || cell.column != cell.mergedStartColumn || cell.column <= lastColumn)
                     {
                         continue;
                     }
@@ -65,6 +64,7 @@ namespace XROfficeFiles.Pages
                     {
                         totalWidth += sheet.columnWidths.FirstOrDefault(cw => cw.column == i)?.width ?? 1d;
                     }
+                    UnityEngine.Debug.Log($"Row: {cell.row} Col: {cell.column} TotalWidth: {totalWidth}");
                     LayoutElement le = cellObj.GetComponent<LayoutElement>();
                     le.preferredWidth = (float)totalWidth * widthMultiplier;
 
@@ -77,8 +77,10 @@ namespace XROfficeFiles.Pages
                             cellObj.GetComponent<Image>().color = bgColor;
                         }
                     }
+                    lastColumn = cell.mergedEndColumn;
                 }
             }
+            // Refresh layout
             LayoutRebuilder.ForceRebuildLayoutImmediate(tableRoot.GetComponent<RectTransform>());
         }
 
@@ -86,17 +88,18 @@ namespace XROfficeFiles.Pages
         {
             Debug.Log("selectedRow." + selectedRow);
         }
-
+        /// <summary>
+        /// Load sample JSON
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
         private async Task<SpreadSheet> LoadJsonFromStreamingAssets(string fileName)
         {
             string filePath = Path.Combine(Application.streamingAssetsPath, fileName);
 
             using (UnityWebRequest request = UnityWebRequest.Get(filePath))
             {
-                // 2. 読み込み開始
                 var operation = request.SendWebRequest();
-
-                // 読み込み完了まで待機
                 while (!operation.isDone)
                 {
                     await Task.Yield();
@@ -105,14 +108,11 @@ namespace XROfficeFiles.Pages
                 if (request.result == UnityWebRequest.Result.Success)
                 {
                     string jsonText = request.downloadHandler.text;
-
-                    // 3. JsonUtility でデシリアライズ
-                    // ※ JSONのルートが配列（[ ]）で始まっている場合は、ラッパークラスが必要です
                     return JsonUtility.FromJson<SpreadSheet>(jsonText);
                 }
                 else
                 {
-                    Debug.LogError($"JSONの読み込みに失敗しました: {request.error}");
+                    Debug.LogError($"Failed loading JSON: {request.error}");
                     return null;
                 }
             }
