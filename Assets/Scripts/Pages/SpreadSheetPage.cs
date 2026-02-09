@@ -47,8 +47,15 @@ namespace XROfficeFiles.Pages
                 rowObj.GetComponent<Button>().onClick.AddListener(() => OnRowSelected(currentRow));
                 var cellsInRow = rowGroup.OrderBy(c => c.column);
                 int lastColumn = 0;
+                int nextExpectedColumn = 0;
                 foreach (var cell in cellsInRow)
                 {
+                    while (nextExpectedColumn < cell.column)
+                    {
+                        float gapWidth = (float)(sheet.columnWidths.FirstOrDefault(cw => cw.column == nextExpectedColumn)?.width ?? 1d);
+                        CreateEmptySpace(rowObj.transform, gapWidth * widthMultiplier);
+                        nextExpectedColumn++;
+                    }
                     if (cell.row != cell.mergedStartRow || cell.column != cell.mergedStartColumn || cell.column <= lastColumn)
                     {
                         continue;
@@ -78,12 +85,17 @@ namespace XROfficeFiles.Pages
                         }
                     }
                     lastColumn = cell.mergedEndColumn;
+                    nextExpectedColumn = cell.mergedEndColumn + 1;
                 }
             }
             // Refresh layout
             LayoutRebuilder.ForceRebuildLayoutImmediate(tableRoot.GetComponent<RectTransform>());
         }
-
+        void CreateEmptySpace(Transform parent, float width)
+        {
+            GameObject gap = Instantiate(cellPrefab, parent);
+            gap.GetComponent<LayoutElement>().preferredWidth = width;
+        }
         private void OnRowSelected(int selectedRow)
         {
             Debug.Log("selectedRow." + selectedRow);
